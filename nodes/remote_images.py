@@ -7,6 +7,9 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from base64 import b64encode
 from io import BytesIO
+import boto3
+
+s3_client = boto3.client('s3', aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
 
 class LoadImageUrl:
 	def __init__(self):
@@ -85,4 +88,48 @@ class SaveImageUrl:
 
 		with requests.post(url, json=data) as r:
 			r.raise_for_status()
+		return ()
+
+class SaveImageToS3:
+	def __init__(self):
+		pass
+	@classmethod
+	def INPUT_TYPES(s):
+		return {
+			"required": {
+				"images": ("IMAGE", ),
+				"bucket": ("STRING", { "multiline": False, }),
+				"filename_prefix": ("STRING", {"default": "ComfyUI"}),
+				"folder": ("STRING", { "multiline": False, }),
+			},
+			"hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+		}
+
+	RETURN_TYPES = ()
+	OUTPUT_NODE = True
+	FUNCTION = "upload_images"
+	CATEGORY = "remote"
+
+	def upload_images(self, images, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+		filename = os.path.basename(os.path.normpath(filename_prefix))
+
+		counter = 1
+		for image in images:
+			i = 255. * image.cpu().numpy()
+			img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+			meta = PngInfo()
+			if prompt is not None:
+				meta.add_text("prompt", json.dumps(prompt))
+			if extra_pnginfo is not None:
+				for x in extra_pnginfo:
+					meta.add_text(x, json.dumps(extra_pnginfo[x]))
+
+			file = f"{filename}_{counter:05}.png"
+
+			buffer = BytesIO()
+			img.save(buffer, "png", pnginfo=meta, compress_level=4)
+			buffer.seek(0)
+			counter += 1
+			s3_client.put_object(Body=buffer, Bucket=bucket, Key=f"{folder}/{file}", ContentType='image/png', ContentEncoding='base64')
+
 		return ()
