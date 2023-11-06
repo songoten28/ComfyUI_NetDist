@@ -24,6 +24,10 @@ The `SaveImageUrl` ('Save Image (URL)') Node sends a POST request to the target 
 - The filenames are **not** guaranteed to be unique across batches since they aren't saved locally. You should handle this server-side.
 - No data is written to disk on the server.
 
+### Save To S3
+The `SaveToS3` will upload images file to s3
+require AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as environment
+
 ### Local Remote control
 You will need at least two different ComfyUI instances. You can use two local GPUs by setting different `--port [port]` and `--cuda-device [number]` launch arguments.
 
