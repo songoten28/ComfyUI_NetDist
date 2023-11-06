@@ -21,7 +21,7 @@ def remote_images():
 	NODE_CLASS_MAPPINGS.update({
 		"LoadImageUrl": LoadImageUrl,
 		"SaveImageUrl": SaveImageUrl,
-		"SaveToS3": SaveImageToS3,
+		"SaveImageToS3": SaveImageToS3,
 		"SaveVideoToS3": SaveVideoToS3,
 		"VideoCombineForS3": VideoCombineForS3,
 	})
