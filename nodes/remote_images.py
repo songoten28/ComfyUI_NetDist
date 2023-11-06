@@ -133,3 +133,30 @@ class SaveImageToS3:
 			s3_client.put_object(Body=buffer, Bucket=bucket, Key=f"{folder}/{file}", ContentType='image/png', ContentEncoding='base64')
 
 		return ()
+
+class SaveVideoToS3:
+	def __init__(self):
+
+	@classmethod
+	def INPUT_TYPES(s):
+		return {
+			"required": {
+				"gif": ("GIF", ),
+				"bucket": ("STRING", { "multiline": False, }),
+				"filename_prefix": ("STRING", {"default": "ComfyUI"}),
+				"folder": ("STRING", { "multiline": False, }),
+			},
+			"hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+		}
+
+	RETURN_TYPES = ()
+	OUTPUT_NODE = True
+	FUNCTION = "upload_video"
+	CATEGORY = "remote"
+
+	def upload_video(self, gif, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+		print("GIF", gif)
+		filename = os.path.basename(os.path.normpath(filename_prefix))
+
+		counter = 1
+		return ()
