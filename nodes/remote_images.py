@@ -93,6 +93,7 @@ class SaveImageUrl:
 class SaveImageToS3:
 	def __init__(self):
 		pass
+
 	@classmethod
 	def INPUT_TYPES(s):
 		return {
@@ -136,6 +137,7 @@ class SaveImageToS3:
 
 class SaveVideoToS3:
 	def __init__(self):
+		pass
 
 	@classmethod
 	def INPUT_TYPES(s):
@@ -151,12 +153,11 @@ class SaveVideoToS3:
 
 	RETURN_TYPES = ()
 	OUTPUT_NODE = True
-	FUNCTION = "upload_video"
+	FUNCTION = "save_video"
 	CATEGORY = "remote"
 
-	def upload_video(self, gif, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-		print("GIF", gif)
+	def save_video(self, gif, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
 		filename = os.path.basename(os.path.normpath(filename_prefix))
+		print("gif", gif)
 
-		counter = 1
 		return ()
