@@ -17,18 +17,20 @@ def remote_control():
 def remote_images():
 	global NODE_CLASS_MAPPINGS
 	global NODE_DISPLAY_NAME_MAPPINGS
-	from .nodes.remote_images import LoadImageUrl, SaveImageUrl, SaveImageToS3, SaveVideoToS3
+	from .nodes.remote_images import LoadImageUrl, SaveImageUrl, SaveImageToS3, SaveVideoToS3, VideoCombineForS3
 	NODE_CLASS_MAPPINGS.update({
 		"LoadImageUrl": LoadImageUrl,
 		"SaveImageUrl": SaveImageUrl,
 		"SaveToS3": SaveImageToS3,
 		"SaveVideoToS3": SaveVideoToS3,
+		"VideoCombineForS3": VideoCombineForS3,
 	})
 	NODE_DISPLAY_NAME_MAPPINGS.update({
 		"LoadImageUrl": "Load Image (URL)",
 		"SaveImageUrl": "Save Image (URL)",
 		"SaveImageToS3": "Save Image to S3",
 		"SaveVideoToS3": "Save Video to S3",
+		"VideoCombineForS3": "Combine Video for S3",
 	})
 
 def remote_misc():
