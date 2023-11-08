@@ -8,6 +8,16 @@ from PIL.PngImagePlugin import PngInfo
 from base64 import b64encode
 from io import BytesIO
 import boto3
+import shutil
+import folder_paths
+import subprocess
+
+folder_paths.folder_names_and_paths["video_formats"] = (
+	[
+		os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
+	],
+	[".json"]
+)
 
 s3_client = boto3.client('s3', aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
 
@@ -145,6 +155,9 @@ class SaveImageToS3:
 		return ()
 
 class VideoCombineForS3:
+	def __init__(self):
+		pass
+
 	@classmethod
 	def INPUT_TYPES(s):
 		#Hide ffmpeg formats if ffmpeg isn't available
@@ -163,8 +176,7 @@ class VideoCombineForS3:
 				"filename_prefix": ("STRING", {"default": "AnimateDiff"}),
 				"format": (["image/gif", "image/webp"] + ffmpeg_formats,),
 				"pingpong": ("BOOLEAN", {"default": False}),
-				"save_image": ("BOOLEAN", {"default": True}),
-				"crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
+				"save_image": ("BOOLEAN", {"default": True})
 			},
 			"hidden": {
 				"prompt": "PROMPT",
@@ -172,12 +184,12 @@ class VideoCombineForS3:
 			},
 		}
 
-	RETURN_TYPES = ("INFORMATION",)
+	RETURN_TYPES = ("MP4",)
 	OUTPUT_NODE = True
 	CATEGORY = "s3"
 	FUNCTION = "combine_video"
 
-	def save_with_tempfile(self, args, metadata, file_path, frames, env, crf):
+	def save_with_tempfile(self, args, metadata, file_path, frames, env):
 		#Ensure temp directory exists
 		os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
@@ -202,7 +214,6 @@ class VideoCombineForS3:
 	def combine_video(
 			self,
 			images,
-			crf,
 			frame_rate: int,
 			loop_count: int,
 			filename_prefix="AnimateDiff",
@@ -228,7 +239,7 @@ class VideoCombineForS3:
 		(
 			full_output_folder,
 			filename,
-			_,
+			counter,
 			subfolder,
 			_,
 		) = folder_paths.get_save_image_path(filename_prefix, output_dir)
@@ -243,26 +254,8 @@ class VideoCombineForS3:
 				metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 				video_metadata[x] = extra_pnginfo[x]
 
-		# comfy counter workaround
-		max_counter = 0
-
-		# Loop through the existing files
-		matcher = re.compile(f"{re.escape(filename)}_(\d+)_?\.[a-zA-Z0-9]+")
-		for existing_file in os.listdir(full_output_folder):
-			# Check if the file matches the expected format
-			match = matcher.fullmatch(existing_file)
-			if match:
-				# Extract the numeric portion of the filename
-				file_counter = int(match.group(1))
-				# Update the maximum counter value if necessary
-				if file_counter > max_counter:
-					max_counter = file_counter
-
-		# Increment the counter by 1 to get the next available value
-		counter = max_counter + 1
-
 		# save first frame as png to keep metadata
-		file = f"{filename}_{counter:05}.png"
+		file = f"{filename}_{counter:05}_.png"
 		file_path = os.path.join(full_output_folder, file)
 		frames[0].save(
 			file_path,
@@ -273,7 +266,7 @@ class VideoCombineForS3:
 			frames = frames + frames[-2:0:-1]
 
 		format_type, format_ext = format.split("/")
-		file = f"{filename}_{counter:05}.{format_ext}"
+		file = f"{filename}_{counter:05}_.{format_ext}"
 		file_path = os.path.join(full_output_folder, file)
 		if format_type == "image":
 			# Use pillow directly to save an animated image
@@ -295,12 +288,12 @@ class VideoCombineForS3:
 			video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
 			with open(video_format_path, 'r') as stream:
 				video_format = json.load(stream)
-			file = f"{filename}_{counter:05}.{video_format['extension']}"
+			file = f"{filename}_{counter:05}_.{video_format['extension']}"
 			file_path = os.path.join(full_output_folder, file)
 			dimensions = f"{frames[0].width}x{frames[0].height}"
 			metadata_args = ["-metadata", "comment=" + json.dumps(video_metadata)]
 			args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-					"-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
+					"-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
 				   + video_format['main_pass']
 			# On linux, max arg length is Pagesize * 32 -> 131072
 			# On windows, this around 32767 but seems to vary wildly by > 500
@@ -316,8 +309,8 @@ class VideoCombineForS3:
 			if  "environment" in video_format:
 				env.update(video_format["environment"])
 			if len(metadata_args[1]) >= max_arg_length:
-				logger.info(f"Using fallback file for long metadata: {len(metadata_args[1])}/{max_arg_length}")
-				self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+				logger.info(f"Using fallback file for extremely long metadata: {len(metadata_args[1])}/{max_arg_length}")
+				self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
 			else:
 				try:
 					with subprocess.Popen(args + metadata_args + [file_path],
@@ -327,13 +320,13 @@ class VideoCombineForS3:
 				except FileNotFoundError as e:
 					if "winerror" in dir(e) and e.winerror == 206:
 						logger.warn("Metadata was too long. Retrying with fallback file")
-						self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+						self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
 					else:
 						raise
 				except OSError as e:
 					if "errno" in dir(e) and e.errno == 7:
 						logger.warn("Metadata was too long. Retrying with fallback file")
-						self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+						self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
 					else:
 						raise
 
@@ -343,9 +336,11 @@ class VideoCombineForS3:
 				"subfolder": subfolder,
 				"type": "output" if save_image else "temp",
 				"format": format,
+				"file_path": file_path
 			}
 		]
-		return {"ui": {"gifs": previews}}
+
+		return ({"previews": previews},{"file_path": file_path})
 
 
 class SaveVideoToS3:
@@ -356,7 +351,7 @@ class SaveVideoToS3:
 	def INPUT_TYPES(s):
 		return {
 			"required": {
-				"gif": ("INFORMATION", ),
+				"mp4": ("MP4", ),
 				"bucket": ("STRING", { "multiline": False, }),
 				"filename_prefix": ("STRING", {"default": "ComfyUI"}),
 				"folder": ("STRING", { "multiline": False, }),
@@ -369,8 +364,23 @@ class SaveVideoToS3:
 	FUNCTION = "save_video"
 	CATEGORY = "s3"
 
-	def save_video(self, gif, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-		filename = os.path.basename(os.path.normpath(filename_prefix))
-		print("gif", gif)
+	def save_video(self, mp4, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+		s3_client.upload_file(Filename = mp4['previews'][0]['file_path'], Bucket = bucket, Key = f'{folder}/{filename_prefix}',
+							  ExtraArgs={'ContentType': "video/mp4"},)
 
+		message = {
+			"data": {
+				"bucket": bucket,
+				"filename_prefix": filename_prefix,
+				"folder": folder,
+				"mp4": mp4,
+			}
+		}
+
+		try:
+			response = requests.post(f'{os.environ.get("ENDPOINT_URL")}/send-process', json=message)
+			response.raise_for_status()
+			print("Response: ", response.json())
+		except requests.exceptions.RequestException as e:
+			print("Error: ", e)
 		return ()
