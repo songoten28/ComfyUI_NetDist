@@ -330,15 +330,14 @@ class VideoCombineForS3:
 					else:
 						raise
 
-		previews = [
-			{
+		previews = {
 				"filename": file,
 				"subfolder": subfolder,
 				"type": "output" if save_image else "temp",
 				"format": format,
 				"file_path": file_path
 			}
-		]
+
 
 		return ({"previews": previews},{"file_path": file_path})
 
@@ -355,6 +354,7 @@ class SaveVideoToS3:
 				"bucket": ("STRING", { "multiline": False, }),
 				"filename_prefix": ("STRING", {"default": "ComfyUI"}),
 				"folder": ("STRING", { "multiline": False, }),
+				"save_seed": ("STRING", {"multiline": False }),
 			},
 			"hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
 		}
@@ -364,22 +364,20 @@ class SaveVideoToS3:
 	FUNCTION = "save_video"
 	CATEGORY = "s3"
 
-	def save_video(self, mp4, bucket, folder, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-		s3_client.upload_file(Filename = mp4['previews'][0]['file_path'], Bucket = bucket, Key = f'{folder}/{filename_prefix}',
+	def save_video(self, mp4, bucket, folder, filename_prefix="ComfyUI", save_seed="", prompt=None, extra_pnginfo=None):
+		s3_client.upload_file(Filename = mp4['previews']['file_path'], Bucket = bucket, Key = f'{folder}/{filename_prefix}',
 							  ExtraArgs={'ContentType': "video/mp4"},)
 
 		message = {
-			"data": {
-				"bucket": bucket,
-				"filename_prefix": filename_prefix,
-				"folder": folder,
-				"mp4": mp4,
-			}
+			"bucket": bucket,
+			"filename_prefix": filename_prefix,
+			"folder": folder,
+			"mp4": json.dumps(mp4),
+			"save_seed": save_seed
 		}
 
 		try:
-			response = requests.post(f'{os.environ.get("ENDPOINT_URL")}/send-process', json=message)
-			response.raise_for_status()
+			response = requests.post(f'{os.environ.get("CRONJOB_ENDPOINT_URL")}/send-process', data=message)
 			print("Response: ", response.json())
 		except requests.exceptions.RequestException as e:
 			print("Error: ", e)
