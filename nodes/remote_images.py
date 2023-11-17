@@ -382,3 +382,41 @@ class SaveVideoToS3:
 		except requests.exceptions.RequestException as e:
 			print("Error: ", e)
 		return ()
+
+class SimulateMask:
+	def __init__(self):
+		pass
+
+	@classmethod
+	def INPUT_TYPES(s):
+		return {
+			"required": {
+				"mask": ("MASK",),
+			},
+			"hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+			"optional": {
+				"copy_image_size": ("IMAGE",),
+			}
+		}
+
+	RETURN_TYPES = ("MASK",)
+	RETURN_NAMES = ("MASK",)
+	OUTPUT_NODE = True
+	FUNCTION = "simulate_mask"
+	CATEGORY = "s3"
+
+	def simulate_mask(self, mask, prompt=None, extra_pnginfo=None, copy_image_size = None):
+		maxTourch = torch.max(mask)
+		if(copy_image_size is not None and torch.isnan(maxTourch)):
+			size = copy_image_size.size()
+			image_width = size[2]
+			image_height = size[1]
+			min_x = image_width / 2 - 25
+			min_y = image_height / 2 - 25
+			max_x = min_x + 50
+			max_y = min_y + 50
+			mask = torch.zeros((image_height, image_width))
+			mask[int(min_y):int(max_y)+1, int(min_x):int(max_x)+1] = 1
+			return (mask.unsqueeze(0),)
+		else:
+			return (mask,)
