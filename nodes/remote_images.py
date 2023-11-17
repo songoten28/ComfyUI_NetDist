@@ -411,12 +411,16 @@ class SimulateMask:
 			size = copy_image_size.size()
 			image_width = size[2]
 			image_height = size[1]
-			min_x = image_width / 2 - 25
-			min_y = image_height / 2 - 25
-			max_x = min_x + 50
-			max_y = min_y + 50
-			mask = torch.zeros((image_height, image_width))
-			mask[int(min_y):int(max_y)+1, int(min_x):int(max_x)+1] = 1
-			return (mask.unsqueeze(0),)
+			min_x = image_width / 2 - 1
+			min_y = image_height / 2 - 1
+			max_x = min_x + 2
+			max_y = min_y + 2
+			temp_mask = torch.zeros((image_height, image_width))
+			temp_mask[int(min_y):int(max_y)+1, int(min_x):int(max_x)+1] = 1
+
+			out = []
+			for _ in mask:
+				out.append(temp_mask.unsqueeze(0))
+			return (torch.stack(out, dim=0), )
 		else:
 			return (mask,)
